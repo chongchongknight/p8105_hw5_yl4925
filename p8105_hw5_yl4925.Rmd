@@ -4,3 +4,56 @@ author: "Yiming Li"
 date: "11/14/2021"
 output: github_document
 ---
+```{r}
+library(tidyverse)
+```
+
+```{r}
+homicide_df = read_csv("./data/homicide-data.csv") %>% 
+  janitor::clean_names() %>% 
+  mutate(city_state = str_c(city, ",", state))
+```
+
+```{r}
+total_homicid = 
+  homicide_df %>% 
+  group_by(city) %>% 
+  summarise(total_count = n())
+
+unsolved_homicide = 
+  homicide_df %>% 
+  filter(disposition %in% c("Closed without arrest", "Open/No arrest")) %>% 
+  group_by(city) %>% 
+  summarise(unsolved_count = n())
+
+left_join(total_homicid, unsolved_homicide)
+```
+
+```{r}
+Baltimore_homicide = 
+  homicide_df %>% 
+  filter(city_state == "Baltimore,MD") %>% 
+  mutate(whether_solved = case_when(
+    disposition == "Closed without arrest" ~ "unsolved",
+    disposition == "Open/No arrest" ~ "unsolved",
+    disposition == "Closed by arrest" ~ "solved"
+  )) %>% 
+  group_by(whether_solved) %>% 
+  summarise(count = n())
+```
+
+
+```{r}
+proportions_test = prop.test(1825, 2827)
+proportions_test = 
+  proportions_test %>% 
+  broom::tidy()
+estimated_proportion = proportions_test %>% 
+  pull(estimate)
+lower_CI_proportion = proportions_test %>% 
+  pull(conf.low)
+upper_CI_proportion = proportions_test %>% 
+  pull(conf.high)
+```
+
+The estimated proportion is `r estimated_proportion`, and the 95% confidence interval for proportion is [`r lower_CI_proportion`, `r upper_CI_proportion`]
