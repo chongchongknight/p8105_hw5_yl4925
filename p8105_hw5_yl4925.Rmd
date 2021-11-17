@@ -11,8 +11,10 @@ library(tidyverse)
 ```{r}
 homicide_df = read_csv("./data/homicide-data.csv") %>% 
   janitor::clean_names() %>% 
-  mutate(city_state = str_c(city, ",", state))
+  mutate(city_state = str_c(city, ",", state)) %>% 
+  filter(state != "AL" | city != "Tulsa")
 ```
+Here is a wrong row, where the state of Tulsa is AL not OK. So I remove this row.
 
 ```{r}
 total_homicid = 
@@ -29,6 +31,7 @@ unsolved_homicide =
 left_join(total_homicid, unsolved_homicide)
 ```
 
+Proportion test for Baltimore
 ```{r}
 Baltimore_homicide = 
   homicide_df %>% 
@@ -44,16 +47,48 @@ Baltimore_homicide =
 
 
 ```{r}
-proportions_test = prop.test(1825, 2827)
-proportions_test = 
-  proportions_test %>% 
+Baltimore_proportions_test = prop.test(Baltimore_homicide$count[2], sum(Baltimore_homicide$count))
+Baltimore_proportions_test = 
+  Baltimore_proportions_test %>% 
   broom::tidy()
-estimated_proportion = proportions_test %>% 
+estimated_proportion = Baltimore_proportions_test %>% 
   pull(estimate)
-lower_CI_proportion = proportions_test %>% 
+lower_CI_proportion = Baltimore_proportions_test %>% 
   pull(conf.low)
-upper_CI_proportion = proportions_test %>% 
+upper_CI_proportion = Baltimore_proportions_test %>% 
   pull(conf.high)
 ```
-
 The estimated proportion is `r estimated_proportion`, and the 95% confidence interval for proportion is [`r lower_CI_proportion`, `r upper_CI_proportion`]
+
+## Proportion test for all cities
+
+```{r}
+proportion_homicide = 
+  homicide_df %>% 
+  mutate(whether_solved = case_when(
+    disposition == "Closed without arrest" ~ "unsolved",
+    disposition == "Open/No arrest" ~ "unsolved",
+    disposition == "Closed by arrest" ~ "solved"
+  )) %>% 
+  group_by(city, whether_solved) %>% 
+  summarise(count = n()) %>% 
+  pivot_wider(
+    names_from = whether_solved,
+    values_from = count
+  ) %>% 
+  mutate(sum = solved + unsolved) %>% 
+  select(city, unsolved, sum)
+```
+
+```{r}
+proportion_result = purrr::map2(.x = proportion_homicide$unsolved, .y = proportion_homicide$sum, prop.test)
+tidy_proportion_result = purrr::map(.x = proportion_result, broom::tidy)
+proportion_table = tibble(
+  city = proportion_homicide$city, 
+  data = tidy_proportion_result
+) %>% 
+  unnest(cols = data) %>% 
+  select(city, estimate, conf.low, conf.high) 
+knitr::kable(proportion_table)
+```
+
