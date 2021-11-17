@@ -92,3 +92,14 @@ proportion_table = tibble(
 knitr::kable(proportion_table)
 ```
 
+
+plot
+```{r}
+proportion_table %>% 
+  mutate(city = fct_reorder(city, -estimate)) %>% 
+  ggplot(aes(y = city)) +
+  geom_bar(aes(weight = estimate)) + 
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high)) 
+  
+```
+
