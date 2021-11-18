@@ -89,17 +89,48 @@ proportion_table = tibble(
 ) %>% 
   unnest(cols = data) %>% 
   select(city, estimate, conf.low, conf.high) 
-knitr::kable(proportion_table)
 ```
 
 
 plot
 ```{r}
 proportion_table %>% 
-  mutate(city = fct_reorder(city, -estimate)) %>% 
-  ggplot(aes(y = city)) +
-  geom_bar(aes(weight = estimate)) + 
-  geom_errorbar(aes(xmin = conf.low, xmax = conf.high)) 
+  mutate(city = fct_reorder(city, estimate)) %>% 
+  ggplot(aes(city, estimate)) +
+  geom_point() + 
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high)) + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "City Unsolved Proportion", x = "City", y = "Unsolved Proportion")
   
+```
+
+# Problem 2
+
+```{r, message=FALSE}
+filename = list.files(path = "./data/data")
+pathname = str_c("./data/data/", filename)
+seperate_table_list = purrr::map(.x = pathname, read_csv)
+```
+
+```{r}
+arm_id  = str_remove(filename, pattern = ".csv")
+tidy_longitudinal_df = tibble(
+  arm_id,
+  data = seperate_table_list
+) %>% 
+  unnest(cols = data) %>% 
+  mutate(arm_and_id = arm_id) %>% 
+  separate(arm_and_id, into = c("arm", "id"), sep = "_")
+
+tidy_longitudinal_df %>% 
+  pivot_longer(
+    week_1:week_8,
+    names_to = "time",
+    names_prefix = "week_",
+    values_to = "observations"
+  ) %>% 
+  mutate(time = as.numeric(time)) %>% 
+  ggplot(aes(time, observations, color = arm_id)) +
+  geom_line(aes(group = arm_id))
 ```
 
