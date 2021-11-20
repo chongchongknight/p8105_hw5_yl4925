@@ -8,8 +8,8 @@ output: github_document
 ```{r setup, include=FALSE}
 library(tidyverse)
 knitr::opts_chunk$set(
-  fig.width = 6,
-  fig.height = 8, 
+  fig.width = 5.5,
+  fig.height = 5, 
   dpi = 200)
 theme_set(theme_minimal() + theme(legend.position = "bottom"))
 options(ggplot2.continuous.colour = "viridis",
