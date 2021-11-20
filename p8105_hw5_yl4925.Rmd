@@ -74,7 +74,7 @@ The estimated proportion is `r estimated_proportion`, and the 95% confidence int
 proportion_result = purrr::map2(.x = unsolved_VS_total$unsolved_count, 
                                 .y = unsolved_VS_total$total_count, 
                                 ~prop.test(x = .x, n = .y)) # use map2 function to do proportion test
-tidy_proportion_result = purrr::map(.x = proportion_result, broom::tidy) # use map function to do tidy 
+tidy_proportion_result = purrr::map(.x = proportion_result, ~broom::tidy(.x)) # use map function to do tidy 
 
 proportion_table = tibble(
   city_state = unsolved_VS_total$city_state, 
@@ -88,7 +88,7 @@ proportion_table %>%
   knitr::kable()
 ```
 
-* Plot
+* Estimate and CI plot
 ```{r}
 proportion_table %>% 
   mutate(city_state = fct_reorder(city_state, estimate)) %>% 
@@ -101,37 +101,56 @@ proportion_table %>%
 ```
 
 # Problem 2
-
+* Get separate file name and path
 ```{r, message=FALSE}
-filename = list.files(path = "./data/data")
-pathname = str_c("./data/data/", filename)
-seperate_table_list = purrr::map(.x = pathname, read_csv)
+filename = list.files(path = "./data/p2data")
+pathname = str_c("./data/p2data/", filename)
+separate_table_list = purrr::map(.x = pathname, ~read_csv(.x)) # use map function to read list element
 ```
 
+* Integrate dataframe
 ```{r}
-arm_id  = str_remove(filename, pattern = ".csv")
-tidy_longitudinal_df = tibble(
+arm_id  = str_remove(filename, pattern = ".csv") #arm and id list
+longitudinal_df = tibble(
   arm_id,
-  data = seperate_table_list
+  data = separate_table_list
 ) %>% 
   unnest(cols = data) %>% 
   mutate(arm_and_id = arm_id) %>% 
-  separate(arm_and_id, into = c("arm", "id"), sep = "_")
+  separate(arm_and_id, into = c("arm", "id"), sep = "_") 
+# we have three variables to show participants status: arm, id, arm_id
+longitudinal_df %>% 
+  head() %>% 
+  knitr::kable()
+```
 
-tidy_longitudinal_df %>% 
+* Do some cleaning 
+```{r}
+tidy_longitudinal_df = longitudinal_df %>% 
   pivot_longer(
     week_1:week_8,
     names_to = "time",
     names_prefix = "week_",
     values_to = "observations"
-  ) %>% 
-  mutate(time = as.numeric(time)) %>% 
-  ggplot(aes(time, observations, color = arm_id)) +
-  geom_line(aes(group = arm_id))
+  ) 
 ```
 
-# Problem 3
+* Make spaghetti plot
+```{r}
+tidy_longitudinal_df %>% 
+  mutate(time = as.numeric(time)) %>% 
+  ggplot(aes(time, observations, color = arm)) +
+  geom_line(aes(group = arm_id), alpha = 0.75) +
+  geom_smooth(se = FALSE) +
+  labs(x = "Time",
+       y = "Observation",
+       title = "Observation for con and exp")
+```
 
+According to smooth line, the observations for con group almost keep the same from week 1 to week 8. But the observations for exp group have the increasing tendency. The overall observations value for exp group is higher than con group.
+
+# Problem 3
+* Load iris missing data
 ```{r}
 set.seed(10)
 
@@ -140,6 +159,7 @@ iris_with_missing = iris %>%
   mutate(Species = as.character(Species))
 ```
 
+* Writing filling function
 ```{r}
 fill_missing_iris = function(x) {
   if (is.numeric(x)) {
@@ -155,5 +175,9 @@ fill_missing_iris = function(x) {
 ```{r}
 filled_iris = iris_with_missing %>% 
   map_df(~fill_missing_iris(.x))
+
+filled_iris %>% 
+  head() %>% 
+  knitr::kable()
 ```
 
