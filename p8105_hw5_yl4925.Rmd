@@ -10,7 +10,6 @@ library(tidyverse)
 knitr::opts_chunk$set(
   fig.width = 6,
   fig.height = 8, 
-  fig.asp = .6,
   dpi = 200,
   out.width = "90%")
 theme_set(theme_minimal() + theme(legend.position = "bottom"))
