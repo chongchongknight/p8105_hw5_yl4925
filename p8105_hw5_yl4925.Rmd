@@ -8,9 +8,11 @@ output: github_document
 ```{r setup, include=FALSE}
 library(tidyverse)
 knitr::opts_chunk$set(
-  fig.width = 5.5,
-  fig.height = 5, 
-  dpi = 200)
+  fig.width = 6,
+  fig.height = 8, 
+  fig.asp = 0.8,
+  dpi = 200,
+  out.width = "90%")
 theme_set(theme_minimal() + theme(legend.position = "bottom"))
 options(ggplot2.continuous.colour = "viridis",
         ggplot2.continuous.fill = "viridis")
