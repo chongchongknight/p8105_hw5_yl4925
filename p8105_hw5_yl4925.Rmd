@@ -4,52 +4,61 @@ author: "Yiming Li"
 date: "11/14/2021"
 output: github_document
 ---
-```{r}
+
+```{r setup, include=FALSE}
 library(tidyverse)
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.height = 8, 
+  fig.asp = .6,
+  dpi = 200,
+  out.width = "90%")
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+options(ggplot2.continuous.colour = "viridis",
+        ggplot2.continuous.fill = "viridis")
+scale_colour_discrete = scale_color_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
 ```
 
-```{r}
+# Problem 1
+* Read and describe the raw data
+```{r, message=FALSE}
 homicide_df = read_csv("./data/homicide-data.csv") %>% 
   janitor::clean_names() %>% 
-  mutate(city_state = str_c(city, ",", state)) %>% 
-  filter(state != "AL" | city != "Tulsa")
-```
-Here is a wrong row, where the state of Tulsa is AL not OK. So I remove this row.
-
-```{r}
-total_homicid = 
-  homicide_df %>% 
-  group_by(city) %>% 
-  summarise(total_count = n())
-
-unsolved_homicide = 
-  homicide_df %>% 
-  filter(disposition %in% c("Closed without arrest", "Open/No arrest")) %>% 
-  group_by(city) %>% 
-  summarise(unsolved_count = n())
-
-left_join(total_homicid, unsolved_homicide)
-```
-
-Proportion test for Baltimore
-```{r}
-Baltimore_homicide = 
-  homicide_df %>% 
-  filter(city_state == "Baltimore,MD") %>% 
+  mutate(city_state = str_c(city, ",", state)) %>%  # create city-state variable
   mutate(whether_solved = case_when(
     disposition == "Closed without arrest" ~ "unsolved",
     disposition == "Open/No arrest" ~ "unsolved",
     disposition == "Closed by arrest" ~ "solved"
-  )) %>% 
-  group_by(whether_solved) %>% 
-  summarise(count = n())
+  )) %>%  # create a new variable to show whether solved or not
+  filter(state != "AL" | city != "Tulsa") # Tulsa should not belong to AL, so remove it
+```
+Here is a wrong row, where the state of Tulsa is AL not OK. So I remove this row.
+
+* Create unsolved and total homicide dataframe for each state
+```{r}
+unsolved_VS_total = homicide_df %>% 
+  group_by(city_state) %>% 
+  summarise(
+    unsolved_count = sum(whether_solved == "unsolved"),
+    total_count = n()
+  )
+unsolved_VS_total %>% 
+  head() %>% 
+  knitr::kable()
 ```
 
-
+We can easily find solved and unsolved homicide data for specific city such as Baltimore
 ```{r}
-Baltimore_proportions_test = prop.test(Baltimore_homicide$count[2], sum(Baltimore_homicide$count))
+Baltimore_homicide = 
+  unsolved_VS_total %>% 
+  filter(city_state == "Baltimore,MD") 
+```
+
+Then we want to apply proportion test for Baltimore.
+```{r}
 Baltimore_proportions_test = 
-  Baltimore_proportions_test %>% 
+  prop.test(Baltimore_homicide$unsolved_count, sum(Baltimore_homicide$total_count)) %>% 
   broom::tidy()
 estimated_proportion = Baltimore_proportions_test %>% 
   pull(estimate)
@@ -60,47 +69,34 @@ upper_CI_proportion = Baltimore_proportions_test %>%
 ```
 The estimated proportion is `r estimated_proportion`, and the 95% confidence interval for proportion is [`r lower_CI_proportion`, `r upper_CI_proportion`]
 
-## Proportion test for all cities
-
+* Proportion test for all cities
 ```{r}
-proportion_homicide = 
-  homicide_df %>% 
-  mutate(whether_solved = case_when(
-    disposition == "Closed without arrest" ~ "unsolved",
-    disposition == "Open/No arrest" ~ "unsolved",
-    disposition == "Closed by arrest" ~ "solved"
-  )) %>% 
-  group_by(city, whether_solved) %>% 
-  summarise(count = n()) %>% 
-  pivot_wider(
-    names_from = whether_solved,
-    values_from = count
-  ) %>% 
-  mutate(sum = solved + unsolved) %>% 
-  select(city, unsolved, sum)
-```
+proportion_result = purrr::map2(.x = unsolved_VS_total$unsolved_count, 
+                                .y = unsolved_VS_total$total_count, 
+                                ~prop.test(x = .x, n = .y)) # use map2 function to do proportion test
+tidy_proportion_result = purrr::map(.x = proportion_result, broom::tidy) # use map function to do tidy 
 
-```{r}
-proportion_result = purrr::map2(.x = proportion_homicide$unsolved, .y = proportion_homicide$sum, prop.test)
-tidy_proportion_result = purrr::map(.x = proportion_result, broom::tidy)
 proportion_table = tibble(
-  city = proportion_homicide$city, 
+  city_state = unsolved_VS_total$city_state, 
   data = tidy_proportion_result
 ) %>% 
   unnest(cols = data) %>% 
-  select(city, estimate, conf.low, conf.high) 
+  select(city_state, estimate, conf.low, conf.high) 
+
+proportion_table %>% 
+  head() %>% 
+  knitr::kable()
 ```
 
-
-plot
+* Plot
 ```{r}
 proportion_table %>% 
-  mutate(city = fct_reorder(city, estimate)) %>% 
-  ggplot(aes(city, estimate)) +
+  mutate(city_state = fct_reorder(city_state, estimate)) %>% 
+  ggplot(aes(city_state, estimate)) +
   geom_point() + 
   geom_errorbar(aes(ymin = conf.low, ymax = conf.high)) + 
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-  labs(title = "City Unsolved Proportion", x = "City", y = "Unsolved Proportion")
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  labs(title = "City Unsolved Proportion", x = "City,State", y = "Unsolved Proportion")
   
 ```
 
