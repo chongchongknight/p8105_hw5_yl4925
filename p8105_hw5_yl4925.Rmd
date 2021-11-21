@@ -36,7 +36,9 @@ homicide_df = read_csv("./data/homicide-data.csv") %>%
   )) %>%  # create a new variable to show whether solved or not
   filter(state != "AL" | city != "Tulsa") # Tulsa should not belong to AL, so remove it
 ```
-Here is a wrong row, where the state of Tulsa is AL not OK. So I remove this row.
+Here is a wrong row, where the state of Tulsa is AL not OK. So I remove this row. 
+
+This dataframe contains 14 variables to describe homicide. It includes specific uid for each homicide, time of homicide, location of homicide(city, state, longitude and latitude), status of victim(name, age, sex and race) and disposition for homicide.
 
 * Create unsolved and total homicide dataframe for each state
 ```{r}
@@ -63,6 +65,12 @@ Then we want to apply proportion test for Baltimore.
 Baltimore_proportions_test = 
   prop.test(Baltimore_homicide$unsolved_count, sum(Baltimore_homicide$total_count)) %>% 
   broom::tidy()
+Baltimore_proportions_test %>% 
+  knitr::kable()
+```
+
+And we can pull its CI and estimated proportion.
+```{r}
 estimated_proportion = Baltimore_proportions_test %>% 
   pull(estimate)
 lower_CI_proportion = Baltimore_proportions_test %>% 
@@ -70,20 +78,20 @@ lower_CI_proportion = Baltimore_proportions_test %>%
 upper_CI_proportion = Baltimore_proportions_test %>% 
   pull(conf.high)
 ```
-The estimated proportion is `r estimated_proportion`, and the 95% confidence interval for proportion is [`r lower_CI_proportion`, `r upper_CI_proportion`]
+The estimated proportion for Baltimore is `r estimated_proportion`, and the 95% confidence interval for proportion is [`r lower_CI_proportion`, `r upper_CI_proportion`]
 
 * Proportion test for all cities
 ```{r}
-proportion_result = purrr::map2(.x = unsolved_VS_total$unsolved_count, 
-                                .y = unsolved_VS_total$total_count, 
-                                ~prop.test(x = .x, n = .y)) # use map2 function to do proportion test
-tidy_proportion_result = purrr::map(.x = proportion_result, ~broom::tidy(.x)) # use map function to do tidy 
-
-proportion_table = tibble(
-  city_state = unsolved_VS_total$city_state, 
-  data = tidy_proportion_result
-) %>% 
-  unnest(cols = data) %>% 
+proportion_table = 
+  unsolved_VS_total %>% 
+  mutate(
+    proportion_result = purrr::map2(.x = unsolved_count, 
+                                    .y = total_count, 
+                                    ~prop.test(x = .x, n = .y)), # use map2 function to do proportion test
+    tidy_proportion_result = purrr::map(.x = proportion_result, ~broom::tidy(.x)) # use map function to do tidy
+  ) %>% 
+  select(-proportion_result) %>% 
+  unnest(tidy_proportion_result) %>% 
   select(city_state, estimate, conf.low, conf.high) 
 
 proportion_table %>% 
@@ -108,20 +116,21 @@ proportion_table %>%
 ```{r}
 filename = list.files(path = "./data/p2data") # file name
 pathname = str_c("./data/p2data/", filename) # path
-arm_id  = str_remove(filename, pattern = ".csv") #arm and id list
+
 ```
 
 * Integrate dataframe
 ```{r}
 longitudinal_df = tibble(
-  arm_id,
+  filename,
   data = purrr::map(.x = pathname, ~read_csv(.x)) # use map function to read list element
 ) %>% 
   unnest(cols = data) %>% 
-  mutate(arm_and_id = arm_id) %>% 
-  separate(arm_and_id, into = c("arm", "id"), sep = "_") %>% 
-  mutate(arm = ifelse(arm == "con","control","experiment"))
-# we have three variables to show participants status: arm, id, arm_id
+  mutate(arm_id = str_remove(filename, pattern = ".csv")) %>% 
+  separate(arm_id, into = c("arm", "id"), sep = "_") %>% 
+  mutate(arm = ifelse(arm == "con","control","experiment")) %>% 
+  select(-filename)
+# we have three variables to show participants status: arm, id
 longitudinal_df %>% 
   head() %>% 
   knitr::kable()
@@ -136,12 +145,16 @@ tidy_longitudinal_df = longitudinal_df %>%
     names_prefix = "week_",
     values_to = "observations"
   ) 
+tidy_longitudinal_df %>% 
+  head() %>% 
+  knitr::kable()
 ```
 
 * Make spaghetti plot
 ```{r}
 tidy_longitudinal_df %>% 
   mutate(time = as.numeric(time)) %>% 
+  unite("arm_id", c(arm, id), sep = "_", remove = F) %>% 
   ggplot(aes(time, observations, color = arm)) +
   geom_line(aes(group = arm_id), alpha = 0.75) +
   geom_smooth(se = FALSE) +
@@ -175,6 +188,7 @@ fill_missing_iris = function(x) {
 }
 ```
 
+* filling the missing value
 ```{r}
 filled_iris = iris_with_missing %>% 
   map_df(~fill_missing_iris(.x))
